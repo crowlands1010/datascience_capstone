@@ -1,0 +1,161 @@
+---
+title: "Milestone Report"
+author: "Courtney Rowlands"
+date: "10/30/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE,cache=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library, include=FALSE,cache=TRUE}
+library(data.table)
+library(dplyr)
+library(doParallel)
+library(ggplot2)
+library(gridExtra)
+library(RWeka)
+library(scales)
+library(SnowballC)
+library(stringi)
+library(tm)
+library(wordcloud)
+```
+
+## Milestone Project
+
+The goal of this project is to display that you've gotten used to working with the data and that you are on track to create your prediction algorithm. Please submit a report on R Pubs (http://www.rpubs.com/) that explains your exploratory analysis and your goals for the eventual app and algorithm. This document should be concise and briefly summarize your plans for creating the prediction algorithm and Shiny app in a way that would be understandable to a non-data scientist manager. You should make use of table and plots to illustrate important summaries of the data set. <br><br>
+
+<b>The motivation for this project is to:</b><br>
+  1. Demonstrate that you've downloaded the data and have successfully loaded it. <br>
+  2. Created a basic report of summary statistics about the data sets. <br>
+  3. Report any interesting findings that you amassed so far. <br>
+  4. Get feedback on your plans for creating a prediction algorithm and Shiny app.<br><br>
+
+### Download, Extract, & Read Data
+
+This section has been commented out because the files have already been downloaded and unzipped locally.<br>
+```{r download}
+## Download and extract zip file
+## if (!file.exists("data")) {
+##  dir.create("data")
+## }
+
+## fileUrl <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+## download.file(fileUrl,destfile="./data/Coursera-SwiftKey.zip")
+
+## unzip(zipfile="./data/Coursera-SwiftKey.zip",exdir="./data")
+```
+
+```{r readData,cache=TRUE}
+## Read blogs data
+blogs <- file("data/final/en_US/en_US.blogs.txt")
+blogs <- readLines(blogs,encoding="UTF-8",skipNul=TRUE)
+
+## Read news data
+news <- file("data/final/en_US/en_US.news.txt") 
+news <- readLines(news,encoding="UTF-8",skipNul=TRUE)
+
+## Read the tweeters
+twitter <- file("data/final/en_US/en_US.twitter.txt")
+twitter <- readLines(twitter,encoding="UTF-8",skipNul=TRUE)
+
+```
+
+### Data Report 
+
+```{r summaryReport,cache=TRUE}
+summary(blogs)
+summary(news)
+summary(twitter)
+
+wordCountBlogs <- length(blogs)
+wordCountNews <- length(news)
+wordCountTwitter<- length(twitter)
+
+blogsSize <- file.info("data/final/en_US/en_US.blogs.txt")$size
+newsSize <- file.info("data/final/en_US/en_US.news.txt")$size
+twitterSize <- file.info("data/final/en_US/en_US.twitter.txt")$size
+```
+
+### Create Data Sample
+
+Because the dataset is so large, I am creating a sample of the dataset.<br>
+```{r dataSample,cache=TRUE}
+set.seed(123)
+sampleBlogs <- sample(blogs,size=length(blogs)*0.01)
+sampleNews <- sample(news,size=length(news)*0.01)
+sampleTwitter <- sample(twitter,size=length(twitter)*0.01)
+dataSample <- sample(paste(sampleBlogs,sampleNews,sampleTwitter),size=5000,replace=TRUE)
+
+head(na.omit(dataSample),5)
+```
+
+### Clean Data using corpus tm_map.
+
+The main structure for managing documents in tm is a so-called Corpus, representing a collection of text documents. A corpus is an abstract concept, and there can exist several implementations in parallel. 
+<br><br>The full documentation can be found here: https://cran.r-project.org/web/packages/tm/vignettes/tm.pdf
+<br><br>
+Here, I am using the tm package to transform case for consistency, and to remove punctuation, numbers, and other junk data.<br>
+```{r cleanData,cache=TRUE}
+dataSample <- iconv(dataSample, 'UTF-8', 'ASCII')
+corpus <- Corpus(VectorSource(as.data.frame(dataSample, stringsAsFactors = FALSE)))
+corpus <- tm_map(corpus,content_transformer(tolower))
+corpus <- tm_map(corpus,PlainTextDocument)
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeNumbers)
+corpus <- tm_map(corpus,removeWords, stopwords("english"))
+corpus <- tm_map(corpus,stemDocument)
+corpus <- tm_map(corpus,stripWhitespace)
+```
+
+### Document Term Matrix
+
+A common approach in text mining is to create a term-document matrix from a corpus. In the tm package the classes TermDocumentMatrix and DocumentTermMatrix (depending on whether you want terms as rows and documents as columns, or vice versa) employ sparse matrices for corpora. Inspecting a term-document matrix displays a sample, whereas as.matrix() yields the full matrix in dense format (which can be very memory consuming for large matrices). 
+<br><br>The full documentation can be found here: https://cran.r-project.org/web/packages/tm/vignettes/tm.pdf
+<br>
+
+```{r documentTermMatrix,cache=TRUE}
+tdmWords <- DocumentTermMatrix(corpus)
+print(tdmWords)
+```
+
+### Data Visualization 
+Data visualization is just an easier way for a non-tech person to view the data. I've utilized the ggplot2 and wordcloud libraries for my visualization.
+```{r plotData,cache=TRUE}
+wordFrequency <- sort(colSums(as.matrix(tdmWords)),decreasing=TRUE) 
+dfWordFrequency <- as.data.frame(wordFrequency[1:30])
+dfWordFrequency <- data.frame(Words=row.names(dfWordFrequency),dfWordFrequency)
+names(dfWordFrequency)[2] = "Frequency"
+head(dfWordFrequency)
+row.names(dfWordFrequency) <-NULL
+
+set.seed(123)
+
+## Word Frequency: Top 75
+wordcloud::wordcloud(names(wordFrequency),wordFrequency,
+                     max.words=75,colors=brewer.pal(6,"RdPu"))
+
+ggWordFrequency <- ggplot(data=dfWordFrequency,aes(x=Words,y=Frequency,fill=Frequency)) + geom_histogram(stat="identity") + 
+labs(title="Word Count (Top 30)",x="Most Words",y="Frequency")+
+theme(axis.text.x=element_text(angle=90)) + 
+theme(plot.title = element_text(hjust=1))
+ggWordFrequency
+```
+
+### Next Steps
+A Shiny app that takes as input a phrase (multiple words) in a text box input and outputs a prediction of the next word.<br>
+A slide deck consisting of no more than 5 slides created with R Studio Presenter (https://support.rstudio.com/hc/en-us/articles/200486468-Authoring-R-Presentations) pitching your algorithm and app as if you were presenting to your boss or an investor.<br><br>
+<b>Data Product</b><br>
+Does the link lead to a Shiny app with a text input box that is running on shinyapps.io?<br>
+Does the app load to the point where it can accept input?<br>
+When you type a phrase in the input box do you get a prediction of a single word after pressing submit and/or a suitable delay for the model to compute the answer?<br>
+Put five phrases drawn from Twitter or news articles in English leaving out the last word. Did it give a prediction for every one?<br><br>
+<b>Slide Deck</b><br>
+Does the link lead to a 5 slide deck on R Pubs?<br>
+Does the slide deck contain a description of the algorithm used to make the prediction?<br>
+Does the slide deck describe the app, give instructions, and describe how it functions?<br>
+How would you describe the experience of using this app?<br>
+Does the app present a novel approach and/or is particularly well done?<br>
+Would you hire this person for your own data science startup company?<br>

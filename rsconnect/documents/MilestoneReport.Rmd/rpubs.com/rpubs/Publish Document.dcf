@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/545061/ffee9eef48a44ef1a6de575b07433dca
+bundleId: https://api.rpubs.com/api/v1/document/545061/ffee9eef48a44ef1a6de575b07433dca
+url: http://rpubs.com/crowlands1010/545061
+when: 1572469566.10284

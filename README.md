@@ -1,2 +1,2 @@
-# datascience_capstone
-capstone course
+# Capstone-DataScience
+ Data Science Capstone Course
